@@ -1,3 +1,4 @@
+#include <iterator>
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
@@ -7,6 +8,7 @@
 #include <fwdpp/ts/marginal_tree_functions/roots.hpp>
 #include <fwdpp/ts/marginal_tree_functions/samples.hpp>
 #include <fwdpy11/numpy/array.hpp>
+#include "fwdpp/ts/mutation_record.hpp"
 #include "node_traversal.hpp"
 
 namespace py = pybind11;
@@ -17,7 +19,8 @@ PYBIND11_MAKE_OPAQUE(fwdpp::ts::std_table_collection::mutation_table);
 
 class tree_visitor_wrapper
 {
-  private:
+    //private:
+  public:
     inline fwdpp::ts::table_index_t
     fetch(const std::vector<fwdpp::ts::table_index_t>& data,
           fwdpp::ts::table_index_t index)
@@ -32,8 +35,8 @@ class tree_visitor_wrapper
     void
     validate_from_until(const double genome_length)
     {
-        if (!std::isfinite(from) || !std::isfinite(until)
-            || from >= genome_length || !(until > from))
+        if (!std::isfinite(from) || !std::isfinite(until) || from >= genome_length
+            || !(until > from))
             {
                 throw std::invalid_argument("invalid position range");
             }
@@ -58,17 +61,17 @@ class tree_visitor_wrapper
                          const std::vector<fwdpp::ts::table_index_t>& samples,
                          bool update_samples_below, double start, double stop)
         : tables_(tables),
-          first_site(tables_.cast<const fwdpp::ts::std_table_collection&>()
-                         .sites.begin()),
-          end_of_sites(tables_.cast<const fwdpp::ts::std_table_collection&>()
-                           .sites.end()),
+          first_site(
+              tables_.cast<const fwdpp::ts::std_table_collection&>().sites.begin()),
+          end_of_sites(
+              tables_.cast<const fwdpp::ts::std_table_collection&>().sites.end()),
           current_site(first_site),
-          first_mutation(tables_.cast<const fwdpp::ts::std_table_collection&>()
-                             .mutations.begin()),
-          end_of_mutations(tables_.cast<const fwdpp::ts::std_table_collection&>()
-                               .mutations.end()),
-          current_mutation(first_mutation),
-          update_samples(update_samples_below), from(start), until(stop),
+          first_mutation(
+              tables_.cast<const fwdpp::ts::std_table_collection&>().mutations.begin()),
+          end_of_mutations(
+              tables_.cast<const fwdpp::ts::std_table_collection&>().mutations.end()),
+          current_mutation(first_mutation), update_samples(update_samples_below),
+          from(start), until(stop),
           visitor(tables_.cast<const fwdpp::ts::std_table_collection&>(), samples,
                   fwdpp::ts::update_samples_list(update_samples_below)),
           samples_below_buffer()
@@ -77,22 +80,22 @@ class tree_visitor_wrapper
             tables_.cast<fwdpp::ts::std_table_collection&>().genome_length());
     }
 
-    tree_visitor_wrapper(
-        py::object tables, const std::vector<fwdpp::ts::table_index_t>& samples,
-        const std::vector<fwdpp::ts::table_index_t>& preserved_nodes,
-        bool update_samples_below, double start, double stop)
+    tree_visitor_wrapper(py::object tables,
+                         const std::vector<fwdpp::ts::table_index_t>& samples,
+                         const std::vector<fwdpp::ts::table_index_t>& preserved_nodes,
+                         bool update_samples_below, double start, double stop)
         : tables_(tables),
-          first_site(tables_.cast<const fwdpp::ts::std_table_collection&>()
-                         .sites.begin()),
-          end_of_sites(tables_.cast<const fwdpp::ts::std_table_collection&>()
-                           .sites.end()),
+          first_site(
+              tables_.cast<const fwdpp::ts::std_table_collection&>().sites.begin()),
+          end_of_sites(
+              tables_.cast<const fwdpp::ts::std_table_collection&>().sites.end()),
           current_site(first_site),
-          first_mutation(tables_.cast<const fwdpp::ts::std_table_collection&>()
-                             .mutations.begin()),
-          end_of_mutations(tables_.cast<const fwdpp::ts::std_table_collection&>()
-                               .mutations.end()),
-          current_mutation(first_mutation),
-          update_samples(update_samples_below), from(start), until(stop),
+          first_mutation(
+              tables_.cast<const fwdpp::ts::std_table_collection&>().mutations.begin()),
+          end_of_mutations(
+              tables_.cast<const fwdpp::ts::std_table_collection&>().mutations.end()),
+          current_mutation(first_mutation), update_samples(update_samples_below),
+          from(start), until(stop),
           visitor(tables_.cast<const fwdpp::ts::std_table_collection&>(), samples,
                   fwdpp::ts::update_samples_list(update_samples_below)),
           samples_below_buffer()
@@ -111,25 +114,21 @@ class tree_visitor_wrapper
                 rv = visitor();
             }
         double pos = std::max(visitor.tree().left, from);
-        current_site
-            = std::lower_bound(current_site, end_of_sites, pos,
-                               [](const fwdpp::ts::site& s, double value) {
-                                   return s.position < value;
-                               });
+        current_site = std::lower_bound(
+            current_site, end_of_sites, pos,
+            [](const fwdpp::ts::site& s, double value) { return s.position < value; });
         if (current_site < end_of_sites)
             {
                 pos = current_site->position;
                 current_mutation = std::lower_bound(
                     current_mutation, end_of_mutations, pos,
-                    [this](const fwdpp::ts::mutation_record& mr,
-                           double value) {
+                    [this](const fwdpp::ts::mutation_record& mr, double value) {
                         return (first_site + mr.site)->position < value;
                     });
                 if (current_mutation < end_of_mutations
                     && (first_site + current_mutation->site)->position != pos)
                     {
-                        throw std::runtime_error(
-                            "error site and mutation iterators");
+                        throw std::runtime_error("error site and mutation iterators");
                     }
             }
         if (visitor.tree().left >= until)
@@ -148,17 +147,15 @@ class tree_visitor_wrapper
     py::array_t<fwdpp::ts::table_index_t>
     nodes()
     {
-        std::vector<fwdpp::ts::table_index_t> vnodes(
-            nodes_preorder(visitor.tree()));
+        std::vector<fwdpp::ts::table_index_t> vnodes(nodes_preorder(visitor.tree()));
         return fwdpy11::make_1d_array_with_capsule(std::move(vnodes));
     }
 
     py::array_t<fwdpp::ts::table_index_t>
     samples() const
     {
-        std::vector<fwdpp::ts::table_index_t> s(
-            visitor.tree().samples_list_begin(),
-            visitor.tree().samples_list_end());
+        std::vector<fwdpp::ts::table_index_t> s(visitor.tree().samples_list_begin(),
+                                                visitor.tree().samples_list_end());
         return fwdpy11::make_1d_array_with_capsule(std::move(s));
     }
 
@@ -175,14 +172,11 @@ class tree_visitor_wrapper
             }
         samples_below_buffer.clear();
         fwdpp::ts::process_samples(
-            visitor.tree(), fwdpp::ts::convert_sample_index_to_nodes(true),
-            node, [this](fwdpp::ts::table_index_t s) {
-                samples_below_buffer.push_back(s);
-            });
+            visitor.tree(), fwdpp::ts::convert_sample_index_to_nodes(true), node,
+            [this](fwdpp::ts::table_index_t s) { samples_below_buffer.push_back(s); });
         if (sorted)
             {
-                std::sort(begin(samples_below_buffer),
-                          end(samples_below_buffer));
+                std::sort(begin(samples_below_buffer), end(samples_below_buffer));
             }
         return fwdpy11::make_1d_ndarray_readonly(samples_below_buffer);
     }
@@ -251,11 +245,9 @@ class tree_visitor_wrapper
                 return std::make_pair(end_of_sites, end_of_sites);
             }
         // Find first Site > current_tree.right
-        auto end_of_range
-            = std::lower_bound(current_site, end_of_sites, pos,
-                               [](const fwdpp::ts::site& s, double value) {
-                                   return s.position < value;
-                               });
+        auto end_of_range = std::lower_bound(
+            current_site, end_of_sites, pos,
+            [](const fwdpp::ts::site& s, double value) { return s.position < value; });
         // NOTE: this guards against a corner case.  If the first mutation
         // not in this tree has position == pos, then upper_bound would result
         // in it being included in he interval, which is bad. So, we instead
@@ -277,15 +269,13 @@ class tree_visitor_wrapper
             {
                 ++current_site;
             }
-        while ((current_site < end_of_sites)
-               && (current_mutation < end_of_mutations)
+        while ((current_site < end_of_sites) && (current_mutation < end_of_mutations)
                && (first_site + current_mutation->site)->position
                       != current_site->position)
             {
                 ++current_mutation;
             }
-        if ((current_site == end_of_sites)
-            || (current_mutation == end_of_mutations)
+        if ((current_site == end_of_sites) || (current_mutation == end_of_mutations)
             || (current_site < end_of_sites && current_site->position >= pos))
             {
                 // Return an empty range
@@ -305,6 +295,34 @@ class tree_visitor_wrapper
     }
 };
 
+// FIXME: should be a friend, so that we can have the above stuff be private?
+struct mutation_iterator
+{
+    tree_visitor_wrapper& tvw_ref;
+    double pos;
+    explicit mutation_iterator(tree_visitor_wrapper& t)
+        : tvw_ref{t}, pos{std::min(tvw_ref.visitor.tree().right, tvw_ref.until)}
+    {
+    }
+
+    const fwdpp::ts::mutation_record
+    next_mutation_on_tree()
+    {
+        if (tvw_ref.current_mutation == tvw_ref.end_of_mutations)
+            {
+                throw py::stop_iteration();
+            }
+        auto rv = *tvw_ref.current_mutation;
+        if ((tvw_ref.first_site + tvw_ref.current_mutation->site) < tvw_ref.end_of_sites
+            && (tvw_ref.first_site + tvw_ref.current_mutation->site)->position >= pos)
+            {
+                throw py::stop_iteration();
+            }
+        tvw_ref.current_mutation++;
+        return rv;
+    }
+};
+
 void
 init_tree_iterator(py::module& m)
 {
@@ -318,23 +336,19 @@ init_tree_iterator(py::module& m)
         
                 Add begin, end options as floats for initializing
             )delim")
-        .def(py::init<py::object, const std::vector<fwdpp::ts::table_index_t>&,
-                      bool, double, double>(),
-             py::arg("tables"), py::arg("samples"),
-             py::arg("update_samples") = false, py::arg("begin") = 0.0,
-             py::arg("end") = std::numeric_limits<double>::max())
+        .def(py::init<py::object, const std::vector<fwdpp::ts::table_index_t>&, bool,
+                      double, double>(),
+             py::arg("tables"), py::arg("samples"), py::arg("update_samples") = false,
+             py::arg("begin") = 0.0, py::arg("end") = std::numeric_limits<double>::max())
         .def(py::init<py::object, const std::vector<fwdpp::ts::table_index_t>&,
                       const std::vector<fwdpp::ts::table_index_t>&, bool, double,
                       double>(),
              py::arg("tables"), py::arg("samples"), py::arg("ancient_samples"),
              py::arg("update_samples") = false, py::arg("begin") = 0.0,
              py::arg("end") = std::numeric_limits<double>::max())
-        .def("parent", &tree_visitor_wrapper::parent,
-             "Return parent of a node")
-        .def("leaf_counts", &tree_visitor_wrapper::leaf_counts,
-             "Leaf counts for a node")
-        .def("preserved_leaf_counts",
-             &tree_visitor_wrapper::preserved_leaf_counts,
+        .def("parent", &tree_visitor_wrapper::parent, "Return parent of a node")
+        .def("leaf_counts", &tree_visitor_wrapper::leaf_counts, "Leaf counts for a node")
+        .def("preserved_leaf_counts", &tree_visitor_wrapper::preserved_leaf_counts,
              "Ancient sample leaf counts for a node")
         .def("left_sib", &tree_visitor_wrapper::left_sib,
              "Return the left sibling of the current node")
@@ -346,15 +360,11 @@ init_tree_iterator(py::module& m)
              "Mapping of current node id to its right child")
         .def_property_readonly(
             "left",
-            [](const tree_visitor_wrapper& self) {
-                return self.visitor.tree().left;
-            },
+            [](const tree_visitor_wrapper& self) { return self.visitor.tree().left; },
             "Left edge of genomic interval (inclusive)")
         .def_property_readonly(
             "right",
-            [](const tree_visitor_wrapper& self) {
-                return self.visitor.tree().right;
-            },
+            [](const tree_visitor_wrapper& self) { return self.visitor.tree().right; },
             "Right edge of genomic interval (exclusive)")
         .def("__next__",
              [](tree_visitor_wrapper& self) -> tree_visitor_wrapper& {
@@ -366,9 +376,7 @@ init_tree_iterator(py::module& m)
                  return self;
              })
         .def("__iter__",
-             [](tree_visitor_wrapper& self) -> tree_visitor_wrapper& {
-                 return self;
-             })
+             [](tree_visitor_wrapper& self) -> tree_visitor_wrapper& { return self; })
         .def(
             "total_time",
             [](const tree_visitor_wrapper& self,
@@ -391,8 +399,7 @@ init_tree_iterator(py::module& m)
                 return tt;
             },
             "Return the sum of branch lengths")
-        .def_property_readonly("sample_size",
-                               &tree_visitor_wrapper::sample_size)
+        .def_property_readonly("sample_size", &tree_visitor_wrapper::sample_size)
         .def_property_readonly(
             "roots",
             [](const tree_visitor_wrapper& self) {
@@ -449,10 +456,7 @@ init_tree_iterator(py::module& m)
             )delim")
         .def(
             "mutations",
-            [](tree_visitor_wrapper& self) {
-                auto r = self.get_mutations_on_current_tree();
-                return py::make_iterator(r.first, r.second);
-            },
+            [](tree_visitor_wrapper& self) { return mutation_iterator(self); },
             py::keep_alive<0, 1>(),
             R"delim(
             Return iterator over all :class:`fwdpy11.MutationRecord` objects
@@ -460,4 +464,10 @@ init_tree_iterator(py::module& m)
 
             .. versionadded:: 0.5.1
             )delim");
+
+    py::class_<mutation_iterator>(m, "MutationTableIterator")
+        .def("__iter__",
+             [](mutation_iterator& self) -> mutation_iterator& { return self; })
+        .def("__next__",
+             [](mutation_iterator& self) { return self.next_mutation_on_tree(); });
 }
